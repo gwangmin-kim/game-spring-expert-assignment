@@ -23,8 +23,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // TODO Lv 8: 제공된 인터셉터를 핸들러 등록에 연결합니다.
+        // Lv 8: 제공된 인터셉터를 핸들러 등록에 연결
         registry.addHandler(gameWebSocketHandler, "/ws/worlds/{worldId}")
+                .addInterceptors(nicknameInterceptor)
                 .setAllowedOriginPatterns(properties.wsAllowedOrigins().toArray(String[]::new));
     }
 }
