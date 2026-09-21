@@ -1,13 +1,16 @@
 package com.gameexpert.ws.handler;
 
+import static com.gameexpert.ws.NicknameHandshakeInterceptor.ATTR_NICKNAME;
+
 import java.util.List;
-import com.gameexpert.ws.NicknameHandshakeInterceptor;
+import com.gameexpert.api.SessionRegistry;
 import com.gameexpert.ws.WorldBroadcaster;
 import com.gameexpert.ws.WorldSessionRegistry;
 import com.gameexpert.ws.WsMessageContext;
 import com.gameexpert.ws.dto.OnlineUsersResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.WebSocketSession;
 import tools.jackson.databind.JsonNode;
 
 @Component
@@ -23,6 +26,15 @@ public class OnlineUsersWsHandler implements WsMessageHandler {
 
     @Override
     public void handle(WsMessageContext context, JsonNode message) {
-        // TODO Lv 15: 현재 월드의 열린 연결에서 닉네임을 조회하고 요청자에게 응답합니다.
+        // Lv 15: 현재 월드의 열린 연결에서 닉네임 조회 후 요청자에게 응답
+        List<String> users = registry.entries(context.worldId()).stream()
+                .map(SessionRegistry.Entry::session)
+                .filter(WebSocketSession::isOpen)
+                .map(session -> (String) session.getAttributes().get(ATTR_NICKNAME))
+                .sorted().toList();
+
+        broadcaster.sendTo(context.session(), new OnlineUsersResponse(
+                users, users.size()
+        ));
     }
 }
