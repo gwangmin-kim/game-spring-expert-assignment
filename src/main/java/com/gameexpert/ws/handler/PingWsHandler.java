@@ -1,5 +1,6 @@
 package com.gameexpert.ws.handler;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import com.gameexpert.ws.WorldBroadcaster;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class PingWsHandler implements WsMessageHandler {
 
     private final WorldBroadcaster broadcaster;
@@ -31,7 +33,10 @@ public class PingWsHandler implements WsMessageHandler {
         if (connection == null || connection.session() != context.session()) {
             return;
         }
-        // TODO Lv 11: presenceService.heartbeat()에 월드 ID와 현재 연결 ID를 전달합니다.
-        // TODO Lv 11: broadcaster.sendTo()로 현재 세션에 PongResponse를 보냅니다.
+        // Lv 11: presenceService.heartbeat()에 월드 ID와 현재 연결 ID를 전달
+        presenceService.heartbeat(context.worldId(), connection.connectionId());
+        // Lv 11: broadcaster.sendTo()로 현재 세션에 PongResponse를 전송
+        broadcaster.sendTo(context.session(), new PongResponse());
+        log.info("heartbeat");
     }
 }
