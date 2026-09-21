@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class PingWsHandler implements WsMessageHandler {
 
     private final WorldBroadcaster broadcaster;
@@ -37,6 +36,5 @@ public class PingWsHandler implements WsMessageHandler {
         presenceService.heartbeat(context.worldId(), connection.connectionId());
         // Lv 11: broadcaster.sendTo()로 현재 세션에 PongResponse를 전송
         broadcaster.sendTo(context.session(), new PongResponse());
-        log.info("heartbeat");
     }
 }
