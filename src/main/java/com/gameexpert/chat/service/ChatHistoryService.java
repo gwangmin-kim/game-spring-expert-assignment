@@ -32,14 +32,9 @@ public class ChatHistoryService {
                 worldId, beforeCreatedAt, beforeId, PageRequest.of(0, limit + 1));
         boolean hasNext = found.size() > limit;
         List<ChatHistoryEntry> items = found.stream().limit(limit)
-                .map(message -> new ChatHistoryEntry(
-                        message.getId(),
-                        message.getSenderNickname(),
-                        message.getContent(),
-                        message.getCreatedAt()
-                )).toList();
-        // TODO Lv 17: 다음 페이지가 있으면 반환한 마지막 항목을, 없으면 null을 선택합니다.
-        ChatHistoryEntry last = null;
+                .map(ChatHistoryEntry::from).toList();
+        // Lv 17: 다음 페이지가 있으면 반환한 마지막 항목, 없으면 null 선택
+        ChatHistoryEntry last = hasNext ? items.getLast() : null;
         return new ChatHistoryPage(items, hasNext,
                 last == null ? null : last.getCreatedAt(),
                 last == null ? null : last.getId());
