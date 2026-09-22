@@ -18,9 +18,12 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -30,6 +33,7 @@ class ChatRateLimitTest {
     ).withExposedPorts(6379);
     private static LettuceConnectionFactory connectionFactory;
     private static StringRedisTemplate redisTemplate;
+    private static RedisScript<Long> incrementChatCountScript;
 
     @BeforeAll
     static void startRedis() {
@@ -38,6 +42,10 @@ class ChatRateLimitTest {
         connectionFactory.afterPropertiesSet();
         connectionFactory.start();
         redisTemplate = new StringRedisTemplate(connectionFactory);
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("scripts/increment_chat_count.lua"));
+        script.setResultType(Long.class);
+        incrementChatCountScript = script;
     }
 
     @AfterAll
@@ -48,9 +56,9 @@ class ChatRateLimitTest {
         REDIS.stop();
     }
 
-    // @Test
+    @Test
     void allowsFiveMessagesAndRejectsSixth() {
-        ChatRateLimitService service = new ChatRateLimitService(redisTemplate);
+        ChatRateLimitService service = new ChatRateLimitService(redisTemplate, incrementChatCountScript);
         List<Boolean> results = IntStream.range(0, 6)
                 .mapToObj(index -> service.allow(101L))
                 .toList();
@@ -59,17 +67,17 @@ class ChatRateLimitTest {
         assertThat(redisTemplate.getExpire("chat:limit:101", TimeUnit.MILLISECONDS))
                 .isBetween(1L, 10_000L);
         assertThat(service.allow(102L)).as("다른 플레이어의 제한은 독립적입니다").isTrue();
-        ChatRateLimitService reconnectedService = new ChatRateLimitService(redisTemplate);
+        ChatRateLimitService reconnectedService = new ChatRateLimitService(redisTemplate, incrementChatCountScript);
         assertThat(reconnectedService.allow(101L))
                 .as("서비스 인스턴스가 달라도 같은 플레이어의 제한을 공유합니다")
                 .isFalse();
     }
 
-    // @Test
+    @Test
     void subsequentMessagesMustNotExtendTheOriginalWindow() {
         String key = "chat:limit:401";
         redisTemplate.opsForValue().set(key, "1", Duration.ofSeconds(5));
-        ChatRateLimitService service = new ChatRateLimitService(redisTemplate);
+        ChatRateLimitService service = new ChatRateLimitService(redisTemplate, incrementChatCountScript);
 
         assertThat(service.allow(401L)).isTrue();
         assertThat(redisTemplate.getExpire(key, TimeUnit.MILLISECONDS))
@@ -77,7 +85,7 @@ class ChatRateLimitTest {
                 .isBetween(1L, 5_000L);
     }
 
-    // @Test
+    @Test
     void concurrentMessagesMustNotExceedFive() throws Exception {
         int requestCount = 12;
         String key = "chat:limit:201";
@@ -93,7 +101,7 @@ class ChatRateLimitTest {
             readsCompleted.await(10, TimeUnit.SECONDS);
             return value;
         }).when(watchedValues).get(anyString());
-        ChatRateLimitService service = new ChatRateLimitService(watchedTemplate);
+        ChatRateLimitService service = new ChatRateLimitService(watchedTemplate, incrementChatCountScript);
 
         try (ExecutorService executor = Executors.newFixedThreadPool(requestCount)) {
             List<Future<Boolean>> requests = IntStream.range(0, requestCount)
@@ -107,9 +115,9 @@ class ChatRateLimitTest {
         assertThat(redisTemplate.getExpire(key, TimeUnit.MILLISECONDS)).isBetween(1L, 10_000L);
     }
 
-    // @Test
+    @Test
     void acceptsMessagesAgainAfterTheWindowExpires() {
-        ChatRateLimitService service = new ChatRateLimitService(redisTemplate);
+        ChatRateLimitService service = new ChatRateLimitService(redisTemplate, incrementChatCountScript);
         String key = "chat:limit:301";
         redisTemplate.opsForValue().set(key, "5", Duration.ofSeconds(1));
         assertThat(service.allow(301L)).isFalse();
